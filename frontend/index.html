@@ -41,101 +41,75 @@
     
     <main id="tab-content">
         <section data-tab="operator" id="tab-operator" class="tab-panel" style="display:block;">
-          <!-- 3-column operator layout matching the reference image -->
-          <div class="op-layout">
+            <div class="two-col">
+                <div class="left-col">
+                    <div class="section-title-sm">Heat setup (applied at Start)</div>
 
-            <!-- LEFT: KPI strip -->
-            <div class="op-left">
-              <div class="heat-clock-sm" id="op-clock">00:00</div>
-              <div id="op-status-pill" style="margin-bottom:6px;"></div>
-              <div id="op-kpi" class="op-kpi-list"></div>
-              <!-- Advisory -->
-              <div class="section-title-sm" style="margin-top:10px;">ADVISORY — LIVE VERDICTS</div>
-              <div class="adv-grid" id="op-adv"></div>
-              <!-- Mini trend chart -->
-              <div style="margin-top:8px;background:#0d1318;border:1px solid #1c2830;border-radius:4px;padding:4px;">
-                <div class="thin-note" style="margin-bottom:2px;">LIVE TREND — TEMPERATURE &amp; MELT</div>
-                <div id="op-trend"></div>
-              </div>
-              <div class="thin-note" id="op-end-text" style="margin-top:6px; white-space:pre-wrap;"></div>
+                    <div class="big-slider-group">
+                      <label class="big-slider-label">Charge (t) <span id="op-charge-val" class="big-slider-val">12.0</span></label>
+                      <input type="range" class="big-slider" id="op-charge" min="4" max="14" step="0.1" value="12">
+                    </div>
+
+                    <div class="big-slider-group">
+                      <label class="big-slider-label">Power (kW) <span id="op-power-val" class="big-slider-val">5200</span></label>
+                      <input type="range" class="big-slider" id="op-power" min="1000" max="8000" step="100" value="5200">
+                    </div>
+
+                    <div class="big-slider-group">
+                      <label class="big-slider-label">Charge C (%) <span id="op-c-val" class="big-slider-val">0.30</span></label>
+                      <input type="range" class="big-slider" id="op-c" min="0.05" max="1.5" step="0.01" value="0.30">
+                    </div>
+
+                    <div class="big-slider-group">
+                      <label class="big-slider-label">Charge Cu (%) <span id="op-cu-val" class="big-slider-val">0.20</span></label>
+                      <input type="range" class="big-slider" id="op-cu" min="0.05" max="0.5" step="0.01" value="0.20">
+                    </div>
+
+                    <div class="form-row" style="flex-direction:row; gap:8px; margin-top:10px;">
+                        <button class="btn btn-primary" id="btn-start" style="flex:1;">▶ START HEAT</button>
+                        <button class="btn" id="btn-tap" style="flex:1;" disabled>⏏ TAP HEAT</button>
+                    </div>
+                    <div class="speed-row">
+                        <span class="thin-note" style="margin-right:8px;">Speed:</span>
+                        <button class="btn speed-btn" data-speed="0">⏸</button>
+                        <button class="btn speed-btn" data-speed="1">1×</button>
+                        <button class="btn speed-btn active" data-speed="10">10×</button>
+                        <button class="btn speed-btn" data-speed="60">60×</button>
+                    </div>
+                    
+                    <div class="section-title-sm" style="margin-top:10px;">Add material NOW (during heat)</div>
+                    <div class="form-row" style="flex-direction:row; gap:8px; align-items:center;">
+                        <select id="op-material" style="flex:2.5;"></select>
+                        <input type="number" id="op-mass" style="flex:1;" min="0" step="1" value="48">
+                    </div>
+                    <button class="btn" id="btn-add" style="width:100%; margin-top:4px;" disabled>＋ Add to bath now</button>
+                    <div class="form-row" style="flex-direction:row; gap:4px; margin-top:4px;">
+                        <button class="btn quick-add" data-mat="Lime (92% CaO)" data-mass="48" style="flex:1; font-size:10px;">Lime</button>
+                        <button class="btn quick-add" data-mat="FeSi75" data-mass="15" style="flex:1; font-size:10px;">FeSi75</button>
+                        <button class="btn quick-add" data-mat="Carburiser" data-mass="12" style="flex:1; font-size:10px;">Carb</button>
+                        <button class="btn quick-add" data-mat="Mill scale (FeO)" data-mass="120" style="flex:1; font-size:10px;">M scale</button>
+                    </div>
+                    
+                    <div class="logbox" id="op-log" style="margin-top:8px;">&nbsp;</div>
+                    
+                    <div class="section-title-sm" style="margin-top:10px;">Furnace state <span class="thin-note">(drag to rotate)</span></div>
+                    <div class="furnace-frame" style="position:relative;">
+                        <canvas id="furnace-canvas"></canvas>
+                        <div id="furnace-temp" style="position:absolute; top:8px; left:8px; font-size:13px; font-weight:700; color:#ffd166;"></div>
+                    </div>
+                </div>
+                <div class="right-col">
+                    <div style="display:flex; justify-content:space-between;">
+                        <div class="heat-clock" id="op-clock">00:00</div>
+                        <div id="op-status-pill"></div>
+                    </div>
+                    <div class="kpi-grid" id="op-kpi"></div>
+                    <div class="section-title-sm" style="margin-top:10px;">Advisory — live verdicts</div>
+                    <div class="adv-grid" id="op-adv"></div>
+                    <div class="live-trend" style="margin-top:8px;" id="op-trend"></div>
+                    <div class="thin-note" id="op-end-text" style="margin-top:8px; white-space:pre-wrap;"></div>
+                </div>
             </div>
-
-            <!-- CENTER: 3D furnace (large, fills the space) -->
-            <div class="op-center">
-              <div class="furnace-frame-big" style="position:relative;">
-                <canvas id="furnace-canvas"></canvas>
-                <div id="furnace-temp" style="
-                  position:absolute; top:14px; left:50%; transform:translateX(-50%);
-                  font-size:26px; font-weight:900; color:#ffd166; letter-spacing:2px;
-                  text-shadow: 0 0 18px #ff7020, 0 0 36px #ff4000;
-                  font-family:'Consolas','Courier New',monospace;
-                ">— °C</div>
-              </div>
-            </div>
-
-            <!-- RIGHT: Controls sidebar -->
-            <div class="op-right">
-              <div class="ctrl-panel">
-                <div class="ctrl-section-hdr">▾ SmartMelt controls</div>
-                <div class="ctrl-section-hdr-2">▾ Heat setup</div>
-                <div class="ctrl-row"><label>Charge (t)</label>
-                  <input type="range" id="op-charge" min="4" max="14" step="0.1" value="12">
-                  <span class="ctrl-val" id="op-charge-val">12</span>
-                </div>
-                <div class="ctrl-row"><label>Power (kW)</label>
-                  <input type="range" id="op-power" min="1000" max="8000" step="100" value="5300">
-                  <span class="ctrl-val" id="op-power-val">5300</span>
-                </div>
-                <div class="ctrl-row"><label>Charge C (%)</label>
-                  <input type="range" id="op-c" min="0.05" max="1.5" step="0.01" value="0.30">
-                  <span class="ctrl-val" id="op-c-val">0.30</span>
-                </div>
-                <div class="ctrl-row"><label>Charge Cu (%)</label>
-                  <input type="range" id="op-cu" min="0.05" max="0.5" step="0.01" value="0.20">
-                  <span class="ctrl-val" id="op-cu-val">0.20</span>
-                </div>
-                <div class="ctrl-row"><label>Tap aim (°C)</label>
-                  <span class="ctrl-val" style="flex:1;text-align:right;">1620</span>
-                </div>
-
-                <div class="ctrl-section-hdr-2" style="margin-top:10px;">▾ Operation</div>
-                <div style="display:flex;gap:6px;margin-bottom:6px;">
-                  <button class="btn btn-primary" id="btn-start" style="flex:1;">▶ Start heat</button>
-                  <button class="btn" id="btn-tap" style="flex:1;" disabled>⏏ tap heat</button>
-                </div>
-                <div style="margin-bottom:6px;">
-                  <div class="thin-note" style="margin-bottom:4px;">Playback speed</div>
-                  <div style="display:flex;gap:4px;">
-                    <button class="btn speed-btn" data-speed="0" style="flex:1;font-size:10px;">⏸</button>
-                    <button class="btn speed-btn" data-speed="1" style="flex:1;font-size:10px;">1×</button>
-                    <button class="btn speed-btn active" data-speed="10" style="flex:1;font-size:10px;">10×</button>
-                    <button class="btn speed-btn" data-speed="60" style="flex:1;font-size:10px;">100× real-time</button>
-                  </div>
-                </div>
-
-                <div class="ctrl-section-hdr-2">▾ Add material (during heat)</div>
-                <div class="ctrl-row" style="gap:4px;">
-                  <label>Material</label>
-                  <select id="op-material" style="flex:2;background:#111820;color:#cfd6dd;border:1px solid #20262c;border-radius:3px;padding:2px 4px;"></select>
-                </div>
-                <div class="ctrl-row" style="gap:4px;">
-                  <label>Mass (kg)</label>
-                  <input type="number" id="op-mass" min="0" step="1" value="48" style="flex:1;background:#111820;color:#cfd6dd;border:1px solid #20262c;border-radius:3px;padding:2px 6px;">
-                </div>
-                <button class="btn" id="btn-add" style="width:100%;margin-top:4px;" disabled>+ Add to bath now</button>
-                <div style="display:flex;gap:3px;margin-top:5px;flex-wrap:wrap;">
-                  <button class="btn quick-add" data-mat="Lime (92% CaO)" data-mass="48" style="flex:1;font-size:10px;padding:3px;">Lime</button>
-                  <button class="btn quick-add" data-mat="FeSi75" data-mass="15" style="flex:1;font-size:10px;padding:3px;">FeSi75</button>
-                  <button class="btn quick-add" data-mat="Carburiser" data-mass="12" style="flex:1;font-size:10px;padding:3px;">Carburiser</button>
-                  <button class="btn quick-add" data-mat="Mill scale (FeO)" data-mass="120" style="flex:1;font-size:10px;padding:3px;">Mill scale</button>
-                </div>
-
-                <div class="ctrl-section-hdr-2" style="margin-top:10px;">▾ View</div>
-                <div class="logbox" id="op-log" style="margin-top:4px;">&nbsp;</div>
-              </div>
-            </div>
-
-          </div>
         </section>
         
         <section data-tab="trajectory" id="tab-trajectory" class="tab-panel"></section>

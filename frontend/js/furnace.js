@@ -11,6 +11,7 @@ import * as THREE from 'three';
 //   • Levitating particle sparks from the melt surface
 //   • Hydraulic tilt cradle with pivot arms
 //   • Pouring spout with animated molten stream on tap
+//   • Mouse / touch drag to rotate the model
 // ────────────────────────────────────────────────────────────────
 
 const MOLTEN_HOT = new THREE.Color(0xffe060);
@@ -118,6 +119,42 @@ export class FurnaceRenderer {
 
     const ro = new ResizeObserver(() => this._onResize());
     ro.observe(c);
+
+    // ── Drag to rotate ──────────────────────────────────────────
+    this._drag = false;
+    this._dragX = 0;
+    this._dragY = 0;
+    this._rotYUser = 0;
+    this._rotXUser = 0.15; // slight downward tilt by default
+
+    const getXY = e => e.touches ? [e.touches[0].clientX, e.touches[0].clientY] : [e.clientX, e.clientY];
+
+    c.addEventListener('mousedown',  e => { this._drag = true; const [x, y] = getXY(e); this._dragX = x; this._dragY = y; c.style.cursor = 'grabbing'; });
+    c.addEventListener('touchstart', e => { this._drag = true; const [x, y] = getXY(e); this._dragX = x; this._dragY = y; }, { passive: true });
+
+    window.addEventListener('mousemove', e => {
+      if (!this._drag) return;
+      const dx = e.clientX - this._dragX;
+      const dy = e.clientY - this._dragY;
+      this._rotYUser += dx * 0.012;
+      this._rotXUser = Math.max(-0.6, Math.min(0.8, this._rotXUser + dy * 0.008));
+      this._dragX = e.clientX;
+      this._dragY = e.clientY;
+      this._autoRotate = false; // pause auto-rotate while user drags
+    });
+    window.addEventListener('touchmove', e => {
+      if (!this._drag) return;
+      const [x, y] = getXY(e);
+      this._rotYUser += (x - this._dragX) * 0.012;
+      this._rotXUser = Math.max(-0.6, Math.min(0.8, this._rotXUser + (y - this._dragY) * 0.008));
+      this._dragX = x; this._dragY = y;
+      this._autoRotate = false;
+    }, { passive: true });
+    window.addEventListener('mouseup',   () => { this._drag = false; c.style.cursor = 'grab'; setTimeout(() => { this._autoRotate = true; }, 2000); });
+    window.addEventListener('touchend',  () => { this._drag = false; setTimeout(() => { this._autoRotate = true; }, 2000); });
+
+    c.style.cursor = 'grab';
+    this._autoRotate = true;
   }
 
   _buildLights() {
@@ -417,9 +454,15 @@ export class FurnaceRenderer {
     requestAnimationFrame(() => this._animate());
     this._t += 0.016;
 
-    // Slow gentle auto-rotation
-    this.rotY += 0.004;
-    this.cradleGroup.rotation.y = this.rotY;
+    // Auto-rotate slowly unless user is dragging
+    if (this._autoRotate) {
+      this.rotY += 0.004;
+    }
+    // Apply both auto-rotation and user drag rotation
+    if (this.cradleGroup) {
+      this.cradleGroup.rotation.y = this.rotY + (this._rotYUser || 0);
+      this.cradleGroup.rotation.x = this._rotXUser || 0;
+    }
 
     // Animate inner glow flicker
     if (this.innerGlow) {

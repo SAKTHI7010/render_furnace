@@ -54,7 +54,23 @@ input[type=range] { flex: 1; accent-color: #ff6a34; }
 .slider-val { font-size: 12px; color: #ff8a4c; min-width: 50px; text-align: right; }
 select, input[type=number], input[type=text] { background: #0e1317; color: #f0f3f6; border: 1px solid #2c3742; border-radius: 0; padding: 4px 8px; font-size: 13px; min-height: 34px; }
 
-.furnace-frame { width: 340px; height: 240px; overflow: hidden; background: #0a0d10; border: 1px solid #232c33; margin-top:8px;}
+/* ── Streamlit-style big sliders ── */
+.big-slider-group { margin: 10px 0 2px; }
+.big-slider-label { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13px; color: #d7dde4; margin-bottom: 4px; }
+.big-slider-val { font-size: 15px; font-weight: 700; color: #ff8a4c; }
+.big-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 6px;
+  border-radius: 3px; background: #2c3a44; outline: none; cursor: pointer;
+  accent-color: #ff6a34; }
+.big-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%; background: #ff6a34;
+  cursor: pointer; box-shadow: 0 0 6px rgba(255,106,52,0.7); }
+.big-slider::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%;
+  background: #ff6a34; cursor: pointer; border: none;
+  box-shadow: 0 0 6px rgba(255,106,52,0.7); }
+.big-slider::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
+
+.furnace-frame { width: 100%; height: 300px; overflow: hidden; background: #0a0d10; border: 1px solid #232c33; margin-top:8px;}
 #furnace-canvas { width: 100%; height: 100%; display: block; }
 .live-trend { background: #0f1418; border: 1px solid #232c33; min-height: 340px; width:100%; }
 
@@ -79,94 +95,3 @@ h1,h2,h3 { color: #f4f7fa; margin:10px 0; }
 code { color:#8fd0f0; background:#12171b; padding:2px 5px; border-radius:4px; font-family:Consolas,monospace; }
 ul { margin-left: 20px; }
 li { margin: 4px 0; }
-
-/* ── Operator Console 3-column layout ────────────────────────────── */
-.op-layout {
-  display: grid;
-  grid-template-columns: 200px 1fr 230px;
-  grid-template-rows: 1fr;
-  gap: 0;
-  height: calc(100vh - 80px);
-  min-height: 600px;
-  overflow: hidden;
-}
-
-/* LEFT — KPI strip */
-.op-left {
-  background: #0d1318;
-  border-right: 1px solid #1c2830;
-  padding: 8px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #232c33 transparent;
-}
-
-/* KPI list (vertical stacked — not grid) */
-.op-kpi-list { display: flex; flex-direction: column; gap: 4px; }
-.op-kpi-list .kpi {
-  min-height: 60px;
-  padding: 6px 9px;
-  background: #101820;
-  border: 1px solid #1c2830;
-}
-.op-kpi-list .kpi-value { font-size: 18px; }
-
-/* Smaller clock for left strip */
-.heat-clock-sm {
-  font: 900 36px Consolas, monospace;
-  color: #ffd166;
-  text-align: center;
-  text-shadow: 0 0 16px #ff7020;
-  letter-spacing: 3px;
-  padding: 6px 0 4px;
-}
-
-/* Advisory cards — single column in left strip */
-.op-left .adv-grid { grid-template-columns: 1fr; }
-.op-left .adv-card { min-height: 58px; padding: 5px 8px; }
-
-/* CENTER — 3D furnace fills available height */
-.op-center {
-  background: #080c10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.furnace-frame-big {
-  width:  100%;
-  height: 100%;
-  overflow: hidden;
-}
-.furnace-frame-big canvas {
-  width:  100% !important;
-  height: 100% !important;
-  display: block;
-}
-
-/* RIGHT — Controls sidebar */
-.op-right {
-  background: #0d1318;
-  border-left: 1px solid #1c2830;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #232c33 transparent;
-}
-.ctrl-panel { padding: 8px; }
-.ctrl-section-hdr {
-  font-size: 11px; font-weight: 700; color: #ff7a3d;
-  border-bottom: 1px solid #232c33; padding: 6px 2px 4px;
-  margin-bottom: 6px; letter-spacing: 0.5px;
-}
-.ctrl-section-hdr-2 {
-  font-size: 10.5px; font-weight: 700; color: #8fc4e0;
-  padding: 4px 2px 3px; margin: 2px 0 5px;
-  border-bottom: 1px solid #182030;
-}
-.ctrl-row {
-  display: flex; align-items: center; gap: 6px;
-  margin: 4px 0; font-size: 11px;
-}
-.ctrl-row label { color: #aeb7c1; min-width: 80px; font-size: 11px; }
-.ctrl-row input[type=range] { flex: 1; accent-color: #ff6a34; height: 3px; }
-.ctrl-val { color: #ff8a4c; font-size: 11px; min-width: 36px; text-align: right; font-family: Consolas, monospace; }
