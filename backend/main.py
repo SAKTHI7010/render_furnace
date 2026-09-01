@@ -1,8 +1,7 @@
-"""SmartMelt API — FastAPI entry point."""
+"""SmartMelt API — FastAPI entry point (API-only, frontend on GitHub Pages)."""
 from __future__ import annotations
-import math, sys
+import sys
 from pathlib import Path
-from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 for _p in (ROOT, ROOT / 'app' / 'lib'):
@@ -14,8 +13,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers import operator, trajectory, physics, ekf, ml, drift, chargemix, economics, validation, debug
+from backend.utils import json_safe as _json_safe
 
 app = FastAPI(title='SmartMelt API', version=E.VERSION)
+
+# Allow GitHub Pages and any origin to call this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=['*'],
@@ -35,11 +37,6 @@ app.include_router(economics.router)
 app.include_router(validation.router)
 app.include_router(debug.router)
 
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-
-from backend.utils import json_safe as _json_safe
-
 @app.get('/api/health')
 def health():
     return {'status': 'ok', 'engine_version': E.VERSION, 'plants': list(E.available_configs())}
@@ -48,11 +45,6 @@ def health():
 def configs():
     return {name: _json_safe(E.config_summary(E.get_config(name))) for name in E.available_configs()}
 
-# Serve index.html at the root
-@app.get("/")
-def serve_index():
-    return FileResponse(ROOT / "frontend" / "index.html")
-
-# Mount the rest of the frontend directory
-app.mount("/", StaticFiles(directory=ROOT / "frontend"), name="frontend")
-
+@app.get('/')
+def root():
+    return {'service': 'SmartMelt API', 'version': E.VERSION, 'docs': '/docs'}

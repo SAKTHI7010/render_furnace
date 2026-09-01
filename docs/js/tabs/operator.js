@@ -1,0 +1,308 @@
+import * as THREE from 'three';
+import { api } from '../api.js';
+import { state, currentSnap, setPlaySpeed, syncPlayback, operatorStatus, logHeat } from '../state.js';
+import { kpi, showLoading, pill, advCard } from '../main.js';
+import { FurnaceRenderer } from '../furnace.js';
+
+let furnace = null;
+let loopActive = false;
+let loopTimer = null;
+let uiTimer = null;
+let trendInitialized = false;
+
+export function activate() {
+    if (!furnace) {
+        furnace = new FurnaceRenderer(document.getElementById('furnace-canvas'));
+        
+        document.getElementById('btn-start').addEventListener('click', onStart);
+        document.getElementById('btn-tap').addEventListener('click', onTap);
+        
+        document.querySelectorAll('.speed-btn').forEach(btn => {
+            btn.addEventListener('click', e => {
+                document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                setPlaySpeed(parseInt(btn.dataset.speed));
+            });
+        });
+        
+        document.querySelectorAll('.quick-add').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('op-material').value = btn.dataset.mat;
+                document.getElementById('op-mass').value = btn.dataset.mass;
+                onAdd();
+            });
+        });
+        
+        document.getElementById('btn-add').addEventListener('click', onAdd);
+        
+        api.operatorAdditions().then(res => {
+            const sel = document.getElementById('op-material');
+            sel.innerHTML = '';
+            res.materials.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m; opt.textContent = m;
+                sel.appendChild(opt);
+            });
+        });
+        
+        ['op-charge', 'op-power', 'op-c', 'op-cu'].forEach(id => {
+            const el = document.getElementById(id);
+            const valEl = document.getElementById(id + '-val');
+            el.addEventListener('input', () => valEl.textContent = el.value);
+        });
+        
+        if (!loopActive) {
+            loopActive = true;
+            uiTimer = setInterval(updateUI, 800);
+            loopTimer = setInterval(loop, 400);
+        }
+    }
+}
+
+export function getHeatSpec() {
+    return {
+        plant: state.plant,
+        charge_t: parseFloat(document.getElementById('op-charge').value),
+        power_kW: parseFloat(document.getElementById('op-power').value),
+        carbon_pct: parseFloat(document.getElementById('op-c').value),
+        copper_pct: parseFloat(document.getElementById('op-cu').value)
+    };
+}
+
+function initTrend() {
+    const trendEl = document.getElementById('op-trend');
+    if (!trendEl) return;
+    
+    Plotly.newPlot('op-trend', [
+        { x: [], y: [], name: 'Bath °C', type: 'scatter', line: { color: '#ff6a34', width: 2 }, yaxis: 'y1' },
+        { x: [], y: [], name: '% C', type: 'scatter', line: { color: '#33d17a', width: 1.5 }, yaxis: 'y2' },
+    ], {
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#0f1418',
+        margin: { l: 48, r: 48, t: 6, b: 28 }, height: 170,
+        xaxis: { gridcolor: '#20262c', zeroline: false, color: '#9aa4af', title: { text: 'min', font: { size: 9 } } },
+        yaxis:  { gridcolor: '#20262c', zeroline: false, color: '#ff6a34', side: 'left',  title: { text: '°C', font: { size: 9 } } },
+        yaxis2: { gridcolor: '#20262c', zeroline: false, color: '#33d17a', side: 'right', title: { text: '% C', font: { size: 9 } }, overlaying: 'y', rangemode: 'tozero' },
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 9 }, bgcolor: 'rgba(0,0,0,0)' },
+    }, { responsive: true, displayModeBar: false });
+    trendInitialized = true;
+}
+
+async function onStart() {
+    try {
+        showLoading(true);
+        const spec = getHeatSpec();
+        const res = await api.operatorStart(spec);
+        
+        state.sessionId = res.session_id;
+        state.frames = res.frames;
+        state.frameIdx = 0;
+        state.running = true;
+        state.tapped = false;
+        state.complete = false;
+        state.appliedAdds = [];
+        state.addLog = [];
+        state.heatLog = [];
+        trendInitialized = false;
+        
+        logHeat('Start heat', `${spec.charge_t} t, ${spec.power_kW} kW, C=${spec.carbon_pct}%, Cu=${spec.copper_pct}%`, 0);
+        
+        document.getElementById('btn-start').disabled = true;
+        document.getElementById('btn-tap').disabled = false;
+        document.getElementById('btn-add').disabled = false;
+        
+        setPlaySpeed(10);
+        document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-speed="10"]').classList.add('active');
+        
+        document.getElementById('op-log').innerHTML = 'Heat started.\n';
+        document.getElementById('op-end-text').textContent = '';
+        document.getElementById('op-adv').innerHTML = '';
+        
+        // Initialize fresh trend chart
+        initTrend();
+        
+    } catch (e) {
+        alert(e.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function onAdd() {
+    if (!state.sessionId || state.tapped || state.complete) return;
+    try {
+        const mat = document.getElementById('op-material').value;
+        const mass = parseFloat(document.getElementById('op-mass').value);
+        
+        showLoading(true);
+        const res = await api.operatorInject({
+            session_id: state.sessionId,
+            frame_idx: state.frameIdx,
+            material: mat,
+            mass_kg: mass
+        });
+        
+        state.frames = res.frames;
+        state.appliedAdds.push({material: mat, mass_kg: mass, frame_idx: res.cut_idx});
+        
+        const simMin = state.frames[state.frameIdx].t_min;
+        logHeat('Inject', `${mass}kg ${mat}`, simMin);
+        
+        const log = document.getElementById('op-log');
+        log.innerHTML += `Added ${mass}kg ${mat} at min ${simMin.toFixed(1)}\n`;
+        log.scrollTop = log.scrollHeight;
+    } catch (e) {
+        alert(e.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function onTap() {
+    if (!state.sessionId) return;
+    try {
+        showLoading(true);
+        const res = await api.operatorTap({
+            session_id: state.sessionId,
+            frame_idx: state.frameIdx
+        });
+        
+        state.tapped = true;
+        state.speed = 0;
+        document.getElementById('btn-tap').disabled = true;
+        document.getElementById('btn-add').disabled = true;
+        document.getElementById('btn-start').disabled = false;
+        
+        logHeat('Tap heat', `T=${res.T_bath_C.toFixed(0)}°C, C=${res.pct_C.toFixed(3)}%, SEC=${res.SEC_kWh_t.toFixed(0)} kWh/t`, res.tap_time_min);
+        
+        document.getElementById('op-end-text').textContent =
+            `TAPPED at ${res.tap_time_min.toFixed(1)} min.\nT_bath = ${res.T_bath_C.toFixed(0)} °C\nC = ${res.pct_C.toFixed(3)} %\nSEC = ${res.SEC_kWh_t.toFixed(0)} kWh/t\nSlag FeO = ${res.slag_FeO_pct.toFixed(1)} %\nBasicity (B2) = ${res.B2.toFixed(2)}`;
+
+        const log = document.getElementById('op-log');
+        log.innerHTML += `Heat tapped.\n`;
+        log.scrollTop = log.scrollHeight;
+    } catch (e) {
+        alert(e.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+function loop() {
+    if (!state.running) return;
+    syncPlayback();
+    
+    const snap = currentSnap();
+    if (!snap) return;
+    
+    const aim = state.configs[state.plant] ? state.configs[state.plant]['Tap aim (°C)'] : 1620;
+    const sz  = state.configs[state.plant] ? state.configs[state.plant]['Heat size (t)'] : 12;
+    
+    // Update Furnace
+    if (furnace) {
+        furnace.update(snap.melted_pct, snap.T_bath_C, snap.slag_total_kg, snap.undissolved_kg, sz, aim);
+        document.getElementById('furnace-temp').textContent = `${snap.T_bath_C.toFixed(0)} °C`;
+    }
+    
+    // Update Live Plotly Trend — only update data, don't re-create layout
+    const past = state.frames.slice(0, state.frameIdx + 1);
+    if (past.length > 1) {
+        if (!trendInitialized) initTrend();
+        
+        const t     = past.map(f => f.t_min);
+        const temps = past.map(f => f.T_bath_C);
+        const carbs = past.map(f => f.pct_C);
+        
+        // Use Plotly.react for efficient update (only changes data, not layout)
+        Plotly.react('op-trend', [
+            { x: t, y: temps, name: 'Bath °C', type: 'scatter', line: { color: '#ff6a34', width: 2 }, yaxis: 'y1' },
+            { x: t, y: carbs, name: '% C',     type: 'scatter', line: { color: '#33d17a', width: 1.5 }, yaxis: 'y2' },
+        ], {
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#0f1418',
+            margin: { l: 48, r: 48, t: 6, b: 28 }, height: 170,
+            xaxis: { gridcolor: '#20262c', zeroline: false, color: '#9aa4af', title: { text: 'min', font: { size: 9 } } },
+            yaxis:  { gridcolor: '#20262c', zeroline: false, color: '#ff6a34', side: 'left',
+                      title: { text: '°C', font: { size: 9 } },
+                      range: [0, Math.max(aim + 100, ...temps)] },
+            yaxis2: { gridcolor: '#20262c', zeroline: false, color: '#33d17a', side: 'right',
+                      title: { text: '% C', font: { size: 9 } },
+                      overlaying: 'y',
+                      range: [0, Math.max(1.5, ...carbs) * 1.4] },
+            showlegend: true,
+            legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 9 }, bgcolor: 'rgba(0,0,0,0)' },
+        }, { responsive: true, displayModeBar: false });
+    }
+    
+    const powerKw = parseFloat(document.getElementById('op-power').value);
+    
+    // Simple projection logic for expected tap (matches Streamlit)
+    let proj = snap.T_bath_C;
+    if (state.frames && state.frames.length > 5 && snap.melted_pct <= 99) {
+        const recent = state.frames.slice(Math.max(0, state.frameIdx - 5), state.frameIdx + 1);
+        const dT = recent[recent.length-1].T_bath_C - recent[0].T_bath_C;
+        const dt = Math.max(recent[recent.length-1].t_min - recent[0].t_min, 0.1);
+        const rate = dT / dt;
+        const dm = recent[recent.length-1].melted_pct - recent[0].melted_pct;
+        if (dm > 0.5) {
+            const mins = (100 - snap.melted_pct) / (dm/dt);
+            proj = snap.T_bath_C + rate * Math.min(mins, 40);
+        } else {
+            proj = snap.T_bath_C + rate * 5;
+        }
+    }
+
+    // Update KPIs - exactly matching Streamlit's _kpi_grid
+    const kpiHtml = [
+        kpi('BATH °C',    snap.T_bath_C.toFixed(0), `aim ${aim.toFixed(0)}`),
+        kpi('CARBON %',   snap.pct_C.toFixed(3)),
+        kpi('MELTED %',   snap.melted_pct.toFixed(0), `${(snap.M_liquid_t || 0).toFixed(1)} t liq`),
+        kpi('SEC KWH/T',  snap.SEC_kWh_t.toFixed(0), `${snap.E_kWh.toFixed(0)} kWh`),
+        kpi('SLAG FEO %', snap.slag_FeO_pct.toFixed(1), snap.pct_P != null ? `P ${snap.pct_P.toFixed(4)}` : ''),
+        kpi('BASICITY B2',snap.B2.toFixed(2), "CaO/SiO2"),
+        kpi('SILICON %',  snap.pct_Si.toFixed(3)),
+        kpi('MANGANESE %',snap.pct_Mn.toFixed(3), snap.pct_S != null ? `S ${snap.pct_S.toFixed(4)}` : ''),
+        kpi('POWER KW',   powerKw.toFixed(0), state.tapped ? 'off' : 'grid'),
+        kpi('TOTAL KWH',  snap.E_kWh.toFixed(0), "cumulative"),
+        kpi('EXPECTED TAP °C', proj.toFixed(0), `aim ${aim.toFixed(0)}`),
+        kpi('ACTUAL BATH °C', snap.T_bath_C.toFixed(0), "measured")
+    ].join('');
+    document.getElementById('op-kpi').innerHTML = kpiHtml;
+    
+    // Clock
+    const totalS = snap.t_min * 60;
+    const m = Math.floor(totalS / 60).toString().padStart(2, '0');
+    const s = Math.floor(totalS % 60).toString().padStart(2, '0');
+    document.getElementById('op-clock').textContent = `${m}:${s}`;
+    
+    // Status pill
+    const st = operatorStatus(snap, aim);
+    document.getElementById('op-status-pill').innerHTML = pill(st.text, st.kind);
+}
+
+let lastAdvisories = [];
+
+async function updateUI() {
+    if (!state.running || state.tapped) return;
+    
+    if (Math.random() < 0.4) {
+        try {
+            const res = await api.operatorAdvisories({
+                session_id: state.sessionId,
+                frame_idx: state.frameIdx
+            });
+            const html = res.advisories.map(a => advCard(a[0], a[1], a[2])).join('');
+            document.getElementById('op-adv').innerHTML = html;
+            
+            res.advisories.forEach(a => {
+                const key = a[1] + a[2];
+                if (!lastAdvisories.includes(key) && a[0] !== 'ok') {
+                    lastAdvisories.push(key);
+                    const simMin = state.frames[state.frameIdx].t_min;
+                    logHeat(`Advisory (${a[0]})`, `${a[1]}: ${a[2]}`, simMin);
+                }
+            });
+            if (lastAdvisories.length > 20) lastAdvisories = lastAdvisories.slice(-20);
+        } catch (e) {}
+    }
+}
