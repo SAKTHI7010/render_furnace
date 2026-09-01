@@ -13,7 +13,7 @@ import engine as E
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import operator, trajectory, physics, ekf, ml, drift, chargemix, economics, validation
+from backend.routers import operator, trajectory, physics, ekf, ml, drift, chargemix, economics, validation, debug
 
 app = FastAPI(title='SmartMelt API', version=E.VERSION)
 app.add_middleware(
@@ -33,6 +33,7 @@ app.include_router(drift.router)
 app.include_router(chargemix.router)
 app.include_router(economics.router)
 app.include_router(validation.router)
+app.include_router(debug.router)
 
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
