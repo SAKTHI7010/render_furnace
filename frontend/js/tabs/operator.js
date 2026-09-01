@@ -234,20 +234,38 @@ function loop() {
         }, { responsive: true, displayModeBar: false });
     }
     
-    // Update KPIs
+    const powerKw = parseFloat(document.getElementById('op-power').value);
+    
+    // Simple projection logic for expected tap (matches Streamlit)
+    let proj = snap.T_bath_C;
+    if (state.frames && state.frames.length > 5 && snap.melted_pct <= 99) {
+        const recent = state.frames.slice(Math.max(0, state.frameIdx - 5), state.frameIdx + 1);
+        const dT = recent[recent.length-1].T_bath_C - recent[0].T_bath_C;
+        const dt = Math.max(recent[recent.length-1].t_min - recent[0].t_min, 0.1);
+        const rate = dT / dt;
+        const dm = recent[recent.length-1].melted_pct - recent[0].melted_pct;
+        if (dm > 0.5) {
+            const mins = (100 - snap.melted_pct) / (dm/dt);
+            proj = snap.T_bath_C + rate * Math.min(mins, 40);
+        } else {
+            proj = snap.T_bath_C + rate * 5;
+        }
+    }
+
+    // Update KPIs - exactly matching Streamlit's _kpi_grid
     const kpiHtml = [
-        kpi('BATH °C',    snap.T_bath_C.toFixed(0)),
+        kpi('BATH °C',    snap.T_bath_C.toFixed(0), `aim ${aim.toFixed(0)}`),
         kpi('CARBON %',   snap.pct_C.toFixed(3)),
-        kpi('MELTED %',   snap.melted_pct.toFixed(1)),
-        kpi('SEC KWH/T',  snap.SEC_kWh_t.toFixed(0)),
-        kpi('SLAG FEO %', snap.slag_FeO_pct.toFixed(1)),
-        kpi('BASICITY B2',snap.B2.toFixed(2)),
+        kpi('MELTED %',   snap.melted_pct.toFixed(0), `${(snap.M_liquid_t || 0).toFixed(1)} t liq`),
+        kpi('SEC KWH/T',  snap.SEC_kWh_t.toFixed(0), `${snap.E_kWh.toFixed(0)} kWh`),
+        kpi('SLAG FEO %', snap.slag_FeO_pct.toFixed(1), snap.pct_P != null ? `P ${snap.pct_P.toFixed(4)}` : ''),
+        kpi('BASICITY B2',snap.B2.toFixed(2), "CaO/SiO2"),
         kpi('SILICON %',  snap.pct_Si.toFixed(3)),
-        kpi('MANGANESE %',snap.pct_Mn.toFixed(3)),
-        kpi('POWER KW',   snap.Q_useful_kW ? snap.Q_useful_kW.toFixed(0) : '—'),
-        kpi('TOTAL KWH',  snap.E_kWh.toFixed(0)),
-        kpi('AIM TAP °C', aim),
-        kpi('TAP °C',     state.tapped ? snap.T_bath_C.toFixed(0) : '—')
+        kpi('MANGANESE %',snap.pct_Mn.toFixed(3), snap.pct_S != null ? `S ${snap.pct_S.toFixed(4)}` : ''),
+        kpi('POWER KW',   powerKw.toFixed(0), state.tapped ? 'off' : 'grid'),
+        kpi('TOTAL KWH',  snap.E_kWh.toFixed(0), "cumulative"),
+        kpi('EXPECTED TAP °C', proj.toFixed(0), `aim ${aim.toFixed(0)}`),
+        kpi('ACTUAL BATH °C', snap.T_bath_C.toFixed(0), "measured")
     ].join('');
     document.getElementById('op-kpi').innerHTML = kpiHtml;
     
