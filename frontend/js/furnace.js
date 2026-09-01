@@ -9,183 +9,268 @@ export class FurnaceRenderer {
 
   _init() {
     const c = this.canvas;
-    const W = c.clientWidth || 320;
-    const H = c.clientHeight || 320;
+    const W = c.clientWidth  || 480;
+    const H = c.clientHeight || 480;
 
-    this.renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true });
+    this.renderer = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: false });
     this.renderer.setSize(W, H, false);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ReinhardToneMapping;
+    this.renderer.toneMappingExposure = 1.2;
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0a0e12);
+    this.scene.background = new THREE.Color(0x080c10);
+    // Subtle grid floor
+    const grid = new THREE.GridHelper(12, 24, 0x1a2230, 0x111820);
+    grid.position.y = -2.0;
+    this.scene.add(grid);
 
-    // Camera
-    this.camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 100);
-    this.camera.position.set(3.5, 2.8, 3.5);
-    this.camera.lookAt(0, 0.3, 0);
+    // Camera — angled front view like the reference
+    this.camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 60);
+    this.camera.position.set(0, 1.2, 7.5);
+    this.camera.lookAt(0, 0, 0);
 
-    // Lights
-    const amb = new THREE.AmbientLight(0x223344, 0.8);
-    this.scene.add(amb);
-    this.pointLight = new THREE.PointLight(0xff6a34, 3.0, 6);
-    this.pointLight.position.set(0, 0.5, 0);
-    this.scene.add(this.pointLight);
-    const dirLight = new THREE.DirectionalLight(0xffd166, 0.6);
-    dirLight.position.set(4, 6, 4);
-    this.scene.add(dirLight);
+    // ── Lighting ──────────────────────────────────────
+    // Ambient base
+    this.scene.add(new THREE.AmbientLight(0x102030, 1.5));
+
+    // Main molten glow (inner point light — very bright orange)
+    this.moltenLight = new THREE.PointLight(0xff7020, 8.0, 8.0);
+    this.moltenLight.position.set(0, 0.3, 0);
+    this.moltenLight.castShadow = true;
+    this.scene.add(this.moltenLight);
+
+    // Secondary warm rim light (top)
+    this.rimLight = new THREE.PointLight(0xffaa40, 3.0, 10);
+    this.rimLight.position.set(0, 3, 0);
+    this.scene.add(this.rimLight);
+
+    // Cool fill from front
+    this.scene.add(new THREE.DirectionalLight(0x304060, 0.6)).position?.set(3, 4, 6);
 
     this._buildFurnace();
 
-    // Rotation state
     this.rotY = 0;
 
-    // Resize observer
     const ro = new ResizeObserver(() => this._onResize());
     ro.observe(c);
   }
 
   _buildFurnace() {
     const scene = this.scene;
+    this.group = new THREE.Group();
+    scene.add(this.group);
 
-    // ── Outer shell (refractory casing) ──
-    const shellMat = new THREE.MeshStandardMaterial({ color: 0x2a1e14, roughness: 0.9, metalness: 0.1 });
-    const shellGeo = new THREE.CylinderGeometry(1.0, 1.05, 2.2, 48, 1, true);
-    this.shell = new THREE.Mesh(shellGeo, shellMat);
-    scene.add(this.shell);
+    // ── Outer refractory shell ────────────────────────
+    // Slightly flared at bottom like real furnace
+    const shellMat = new THREE.MeshStandardMaterial({
+      color:     0x1e1208,
+      roughness: 0.85,
+      metalness: 0.12,
+    });
+    const shell = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.55, 1.65, 3.2, 64, 1, true),
+      shellMat
+    );
+    this.group.add(shell);
 
     // Bottom cap
-    const botGeo = new THREE.CircleGeometry(1.05, 48);
-    const bot    = new THREE.Mesh(botGeo, shellMat);
-    bot.rotation.x = -Math.PI / 2;
-    bot.position.y = -1.1;
-    scene.add(bot);
+    const botCap = new THREE.Mesh(new THREE.CircleGeometry(1.65, 64), shellMat);
+    botCap.rotation.x = -Math.PI / 2;
+    botCap.position.y = -1.6;
+    this.group.add(botCap);
 
-    // ── Copper induction coil ──
-    const coilMat = new THREE.MeshStandardMaterial({ color: 0xc8802f, roughness: 0.3, metalness: 0.85, emissive: 0x3a1800, emissiveIntensity: 0.4 });
-    const turns = 9;
-    for (let i = 0; i < turns; i++) {
-      const y      = -0.95 + (i / (turns - 1)) * 1.9;
-      const coilGeo = new THREE.TorusGeometry(1.08, 0.045, 8, 48);
-      const coil    = new THREE.Mesh(coilGeo, coilMat);
-      coil.position.y = y;
-      scene.add(coil);
+    // ── Induction coil rings ──────────────────────────
+    // Thick copper rings — matches the reference image
+    const coilMat = new THREE.MeshStandardMaterial({
+      color:            0xb06820,
+      roughness:        0.22,
+      metalness:        0.92,
+      emissive:         new THREE.Color(0x3a1500),
+      emissiveIntensity: 0.3,
+    });
+    const TURNS  = 14;
+    const COIL_R = 1.70;   // slightly outside shell
+    const TUBE_R = 0.088;  // tube thickness
+    for (let i = 0; i < TURNS; i++) {
+      const y = -1.45 + (i / (TURNS - 1)) * 2.9;
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(COIL_R, TUBE_R, 12, 64),
+        coilMat
+      );
+      ring.position.y = y;
+      this.group.add(ring);
     }
 
-    // ── Liquid steel pool ──
-    const liquidMat = new THREE.MeshStandardMaterial({
-      color: 0xff6a34, emissive: 0xff3300, emissiveIntensity: 1.2,
-      roughness: 0.15, metalness: 0.7
+    // ── Inner refractory lining (visible at top opening) ──
+    const liningMat = new THREE.MeshStandardMaterial({
+      color: 0x5a3a22, roughness: 0.95, metalness: 0.0
     });
-    this.liquidGeo  = new THREE.CylinderGeometry(0.88, 0.88, 0.01, 48);
-    this.liquid     = new THREE.Mesh(this.liquidGeo, liquidMat);
-    this.liquid.position.y = -1.05;
-    scene.add(this.liquid);
+    const lining = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.38, 1.42, 3.1, 48, 1, true),
+      liningMat
+    );
+    this.group.add(lining);
 
-    // ── Slag layer ──
-    const slagMat = new THREE.MeshStandardMaterial({ color: 0x7d6b48, roughness: 0.8, metalness: 0.0 });
-    this.slagGeo  = new THREE.CylinderGeometry(0.88, 0.88, 0.01, 48);
-    this.slag     = new THREE.Mesh(this.slagGeo, slagMat);
-    this.slag.position.y = -1.04;
-    scene.add(this.slag);
-
-    // ── Solid scrap pile ──
-    const scrapMat = new THREE.MeshStandardMaterial({ color: 0x546572, roughness: 0.95, metalness: 0.5 });
-    this.scrapGeo  = new THREE.CylinderGeometry(0.78, 0.85, 0.1, 48);
-    this.scrap     = new THREE.Mesh(this.scrapGeo, scrapMat);
-    scene.add(this.scrap);
-
-    // ── Glow sphere (simulates liquid heat glow through walls) ──
-    const glowMat = new THREE.MeshStandardMaterial({
-      color: 0xff4400, emissive: 0xff4400, emissiveIntensity: 0.0,
-      transparent: true, opacity: 0.0
+    // ── Liquid steel pool ─────────────────────────────
+    this.liquidMat = new THREE.MeshStandardMaterial({
+      color:             new THREE.Color(0xff6020),
+      emissive:          new THREE.Color(0xff4000),
+      emissiveIntensity: 2.0,
+      roughness:         0.05,
+      metalness:         0.85,
     });
-    this.glow = new THREE.Mesh(new THREE.SphereGeometry(0.72, 16, 16), glowMat);
-    this.glow.position.y = -0.3;
-    scene.add(this.glow);
+    this.liquidMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.35, 1.35, 0.02, 64),
+      this.liquidMat
+    );
+    this.liquidMesh.position.y = -1.58;
+    this.group.add(this.liquidMesh);
 
-    // ── Top rim ──
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0x1a1008, roughness: 0.7, metalness: 0.3 });
-    const rim    = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.07, 8, 48), rimMat);
-    rim.position.y = 1.1;
-    scene.add(rim);
+    // ── Slag layer ────────────────────────────────────
+    this.slagMat = new THREE.MeshStandardMaterial({
+      color: 0x8c7040, roughness: 0.9, metalness: 0.0,
+      emissive: new THREE.Color(0x3a2000), emissiveIntensity: 0.2,
+    });
+    this.slagMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.35, 1.35, 0.02, 48),
+      this.slagMat
+    );
+    this.slagMesh.position.y = -1.56;
+    this.group.add(this.slagMesh);
 
-    // ── Tap spout ──
-    const spoutMat = new THREE.MeshStandardMaterial({ color: 0x2a1e14, roughness: 0.8, metalness: 0.2 });
-    const spout    = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.18, 0.5, 16), spoutMat);
+    // ── Solid scrap pile ──────────────────────────────
+    this.scrapMat = new THREE.MeshStandardMaterial({
+      color: 0x4a5a68, roughness: 0.96, metalness: 0.55
+    });
+    this.scrapMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.1, 1.3, 0.2, 32),
+      this.scrapMat
+    );
+    this.group.add(this.scrapMesh);
+
+    // ── Top rim (thick steel collar) ─────────────────
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: 0x2a1e10, roughness: 0.65, metalness: 0.45
+    });
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(1.55, 0.12, 10, 64),
+      rimMat
+    );
+    rim.position.y = 1.6;
+    this.group.add(rim);
+
+    // ── Tap spout ─────────────────────────────────────
+    const spoutMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1008, roughness: 0.8, metalness: 0.3
+    });
+    const spout = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14, 0.20, 0.6, 16),
+      spoutMat
+    );
     spout.rotation.z = Math.PI / 2.2;
-    spout.position.set(1.1, -0.55, 0);
-    scene.add(spout);
+    spout.position.set(1.7, -0.8, 0);
+    this.group.add(spout);
 
-    // Group everything for rotation
-    this.group = new THREE.Group();
-    [this.shell, bot, this.liquid, this.slag, this.scrap, this.glow, rim, spout].forEach(m => {
-      scene.remove(m); this.group.add(m);
-    });
-    for (let i = 0; i < turns; i++) {
-      const c = scene.children.find(ch => ch.geometry?.type === 'TorusGeometry' && ch !== rim);
-      if (c) { scene.remove(c); this.group.add(c); }
+    // ── Volumetric glow sphere (heat-responsive) ──────
+    this.glowMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(1.1, 24, 24),
+      new THREE.MeshStandardMaterial({
+        color:             new THREE.Color(0xff5000),
+        emissive:          new THREE.Color(0xff5000),
+        emissiveIntensity: 0.0,
+        transparent:       true,
+        opacity:           0.0,
+        side:              THREE.BackSide,
+        depthWrite:        false,
+      })
+    );
+    this.glowMesh.position.y = -0.2;
+    this.group.add(this.glowMesh);
+
+    // ── Lens flare sprites (fake bloom dots) ──────────
+    this._flares = [];
+    for (let i = 0; i < 4; i++) {
+      const geo  = new THREE.PlaneGeometry(0.22, 0.22);
+      const mat  = new THREE.MeshBasicMaterial({
+        color: 0xffd080, transparent: true, opacity: 0.0,
+        side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending,
+      });
+      const fl = new THREE.Mesh(geo, mat);
+      const ang = (i / 4) * Math.PI * 2;
+      fl.position.set(Math.cos(ang) * 0.45, 1.62 + Math.sin(ang * 1.3) * 0.05, Math.sin(ang) * 0.45);
+      fl.lookAt(this.camera.position);
+      this.group.add(fl);
+      this._flares.push(fl);
     }
-    // Re-add all torus coils from scene
-    const toRemove = [];
-    scene.children.forEach(ch => {
-      if (ch.isMesh && ch.geometry?.type === 'TorusGeometry') toRemove.push(ch);
-    });
-    toRemove.forEach(m => { scene.remove(m); this.group.add(m); });
-
-    scene.add(this.group);
   }
 
-  update(meltedPct = 0, bathTempC = 1000, slagKg = 0, undissolvedKg = 0, chargeT = 12, aimC = 1620) {
-    const pct = Math.max(0, Math.min(100, meltedPct || 0)) / 100;
-    const T   = bathTempC || 1000;
+  update(meltedPct = 0, bathTempC = 1000, slagKg = 0, _undissolvedKg = 0, _chargeT = 12, aimC = 1620) {
+    const pct      = Math.max(0, Math.min(100, meltedPct || 0)) / 100;
+    const T        = bathTempC || 1000;
+    const heatFrac = Math.max(0, Math.min(1, (T - 600) / (aimC - 600)));
 
-    // Liquid height: 0 at -1.1, max 1.8 at full melt
-    const liqH   = Math.max(0.02, pct * 1.75);
-    const liqY   = -1.1 + liqH / 2;
+    // ── Liquid height ─────────────────────────────────
+    const liqH = Math.max(0.04, pct * 3.0);           // max ~3 units tall
+    const liqY = -1.6 + liqH / 2;
 
-    // Rebuild liquid cylinder height
-    this.group.remove(this.liquid);
-    this.liquidGeo = new THREE.CylinderGeometry(0.88, 0.88, liqH, 48);
-    this.liquid.geometry.dispose();
-    this.liquid.geometry = this.liquidGeo;
-    this.liquid.position.y = liqY;
-    this.group.add(this.liquid);
+    this.liquidMesh.geometry.dispose();
+    this.liquidMesh.geometry = new THREE.CylinderGeometry(1.35, 1.35, liqH, 64);
+    this.liquidMesh.position.y = liqY;
 
-    // Slag sits on top of liquid
-    const slagH = slagKg > 0 ? Math.min(0.15, 0.05 + slagKg / 8000) : 0.04;
-    this.slag.geometry.dispose();
-    this.slag.geometry = new THREE.CylinderGeometry(0.88, 0.88, slagH, 48);
-    this.slag.position.y = liqY + liqH / 2 + slagH / 2;
+    // ── Slag ─────────────────────────────────────────
+    const slagH = slagKg > 0 ? Math.min(0.2, 0.05 + slagKg / 6000) : 0.04;
+    this.slagMesh.geometry.dispose();
+    this.slagMesh.geometry = new THREE.CylinderGeometry(1.35, 1.35, slagH, 48);
+    this.slagMesh.position.y = liqY + liqH / 2 + slagH / 2;
 
-    // Scrap pile above slag (disappears as melt progresses)
-    const scrapH = Math.max(0, (1 - pct) * 1.4 + 0.05);
-    this.scrap.geometry.dispose();
-    this.scrap.geometry = new THREE.CylinderGeometry(0.78 * (1 - 0.3 * pct), 0.85, scrapH, 48);
-    this.scrap.position.y = this.slag.position.y + slagH / 2 + scrapH / 2;
-    this.scrap.visible = scrapH > 0.08;
+    // ── Scrap ─────────────────────────────────────────
+    const scrapH = Math.max(0, (1 - pct) * 2.5 + 0.05);
+    this.scrapMesh.geometry.dispose();
+    this.scrapMesh.geometry = new THREE.CylinderGeometry(
+      1.0 * (1 - 0.25 * pct), 1.3, scrapH, 32
+    );
+    this.scrapMesh.position.y = this.slagMesh.position.y + slagH / 2 + scrapH / 2;
+    this.scrapMesh.visible = scrapH > 0.1;
 
-    // Glow intensity by temperature
-    const heatFrac = Math.max(0, Math.min(1, (T - 800) / (aimC - 800)));
-    const gi       = heatFrac * 0.6;
-    this.glow.material.emissiveIntensity = gi;
-    this.glow.material.opacity           = gi * 0.18;
-    this.glow.position.y                 = liqY;
-    this.pointLight.intensity = 1.5 + heatFrac * 3.0;
-    this.pointLight.color.setHSL(0.04 - heatFrac * 0.04, 1.0, 0.55);
-    this.pointLight.position.y = liqY + liqH * 0.4;
+    // ── Liquid colour: dark-red → orange → bright-yellow ──
+    const liqHue = 0.04 - heatFrac * 0.038;  // red→warm-yellow
+    const liqLit = 0.22 + heatFrac * 0.32;
+    const liqCol = new THREE.Color().setHSL(liqHue, 1.0, liqLit);
+    this.liquidMat.color.copy(liqCol);
+    this.liquidMat.emissive.copy(liqCol);
+    this.liquidMat.emissiveIntensity = 1.2 + heatFrac * 1.8;
 
-    // Liquid colour: dark red → orange → bright yellow at aim
-    const liqColor = new THREE.Color().setHSL(0.04 - heatFrac * 0.035, 1.0, 0.28 + heatFrac * 0.25);
-    this.liquid.material.color.copy(liqColor);
-    this.liquid.material.emissive.copy(liqColor).multiplyScalar(0.6);
-    this.liquid.material.emissiveIntensity = 0.5 + heatFrac * 0.9;
+    // ── Glow sphere ───────────────────────────────────
+    const gi = heatFrac * 0.65;
+    this.glowMesh.material.emissiveIntensity = gi;
+    this.glowMesh.material.opacity           = gi * 0.22;
+    this.glowMesh.position.y = liqY + 0.1;
+
+    // ── Lens flares (bloom at top opening when very hot) ──
+    const flareOpacity = Math.max(0, (heatFrac - 0.55) * 2.2);
+    this._flares.forEach((fl, i) => {
+      fl.material.opacity = flareOpacity * (0.6 + 0.4 * Math.sin(Date.now() / 700 + i));
+    });
+
+    // ── Point light ───────────────────────────────────
+    this.moltenLight.intensity = 3.0 + heatFrac * 9.0;
+    this.moltenLight.color.setHSL(liqHue, 1.0, 0.58);
+    this.moltenLight.position.y = liqY + liqH * 0.3;
+
+    this.rimLight.intensity = heatFrac * 4.0;
+    this.rimLight.color.setHSL(liqHue + 0.01, 1.0, 0.6);
   }
 
   _animate() {
     requestAnimationFrame(() => this._animate());
-    this.rotY += 0.006;
-    if (this.group) this.group.rotation.y = this.rotY;
+    // Slow auto-rotation
+    this.rotY += 0.0035;
+    this.group.rotation.y = this.rotY;
+    // Keep flares facing camera
+    this._flares?.forEach(fl => fl.lookAt(this.camera.position));
     this.renderer.render(this.scene, this.camera);
   }
 
