@@ -20,7 +20,7 @@ def main(input_path: str, output_path: str, error_path: str) -> int:
             payload = pickle.load(fh)
         frames, states, pools = E.simulate_frames_live(
             payload["cfg_obj"], payload["charge_t"], payload["comp"],
-            payload["power_kW"], additions=payload.get("additions") or [], dt=2.0,
+            payload["power_kW"], additions=payload.get("additions") or [], dt=5.0,
             t_end_min=95.0, from_state=payload.get("from_state"),
             from_pool=payload.get("from_pool"), t0_s=payload.get("t0_s", 0.0),
             cooperative=False,

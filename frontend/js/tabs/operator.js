@@ -48,7 +48,7 @@ export function activate() {
         ['op-charge', 'op-power', 'op-c', 'op-cu'].forEach(id => {
             const el = document.getElementById(id);
             const valEl = document.getElementById(id + '-val');
-            if (el && valEl) el.addEventListener('input', () => valEl.textContent = el.value);
+            el.addEventListener('input', () => valEl.textContent = el.value);
         });
         
         if (!loopActive) {
@@ -78,7 +78,7 @@ function initTrend() {
         { x: [], y: [], name: '% C', type: 'scatter', line: { color: '#33d17a', width: 1.5 }, yaxis: 'y2' },
     ], {
         paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#0f1418',
-        margin: { l: 40, r: 40, t: 4, b: 22 }, height: 150,
+        margin: { l: 48, r: 48, t: 6, b: 28 }, height: 170,
         xaxis: { gridcolor: '#20262c', zeroline: false, color: '#9aa4af', title: { text: 'min', font: { size: 9 } } },
         yaxis:  { gridcolor: '#20262c', zeroline: false, color: '#ff6a34', side: 'left',  title: { text: '°C', font: { size: 9 } } },
         yaxis2: { gridcolor: '#20262c', zeroline: false, color: '#33d17a', side: 'right', title: { text: '% C', font: { size: 9 } }, overlaying: 'y', rangemode: 'tozero' },

@@ -1,21 +1,22 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from backend.utils import E, json_safe
+from backend.utils import E, json_safe, cached_get_config, cached_run_heat
+import functools
 
 router = APIRouter(prefix="/api/validation")
 
 class ValidRequest(BaseModel):
     plant: str
 
-@router.post("")
-def run_validation(req: ValidRequest):
-    cfg = E.get_config(req.plant)
-    specs = [
-        E.AdditionSpec("Lime (92% CaO)", 10, 48),
-        E.AdditionSpec("FeSi75", 45, 15),
-        E.AdditionSpec("Mill scale (FeO)", 60, 150)
-    ]
-    r = E.run_heat(cfg, 12000, dict(E.DEFAULT_CHARGE_COMP), 5200, additions=E.build_additions(specs), dt=2.0)
+@functools.lru_cache(maxsize=4)
+def _get_validation_data(plant: str):
+    cfg = cached_get_config(plant)
+    specs = (
+        ("Lime (92% CaO)", 10.0, 48.0),
+        ("FeSi75", 45.0, 15.0),
+        ("Mill scale (FeO)", 60.0, 150.0)
+    )
+    r = cached_run_heat(plant, 12000.0, 5200.0, 0.30, 0.20, specs, dt=5.0)
     
     sm = E.config_summary(cfg)
     floor = E.theoretical_floor_kWh_t(cfg)
@@ -35,7 +36,7 @@ def run_validation(req: ValidRequest):
     closure = r.energy.get("residual_pct", float("nan"))
     hit = abs(r.endpoint["T_C"] - aim) <= 15
     
-    return json_safe({
+    return {
         "audit_rows": audit_rows,
         "ledger_pct": r.ledger_max_pct,
         "closure_pct": closure,
@@ -46,4 +47,8 @@ def run_validation(req: ValidRequest):
         "ledger_ok": r.ledger_max_pct < 1,
         "closure_ok": abs(closure) < 5,
         "ledger_df": r.ledger_df.to_dict(orient="records")
-    })
+    }
+
+@router.post("")
+def run_validation(req: ValidRequest):
+    return json_safe(_get_validation_data(req.plant))
