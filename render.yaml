@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: smartmelt-api
+    runtime: python
+    rootDir: .
+    buildCommand: pip install -r backend/requirements.txt -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHONUTF8
+        value: "1"
+      - key: OMP_NUM_THREADS
+        value: "1"
+
+  - type: web
+    name: smartmelt-console
+    runtime: static
+    rootDir: frontend
+    buildCommand: ""
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Access-Control-Allow-Origin
+        value: "*"
+    envVars:
+      - key: SMARTMELT_API_URL
+        value: https://smartmelt-api.onrender.com

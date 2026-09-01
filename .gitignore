@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment files
+.env
+*.env
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs / caches
+*.log
+*.cache
+
+# Streamlit — keep out of the clean deploy repo
+.streamlit/
+
+# Pytest
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Large data files / models (not needed for deploy)
+examples/
+*.csv
+*.pkl
+*.joblib
+*.h5
+
+# Streamlit app files (not deployed via render_furnace)
+streamlit_app.py
+run_streamlit.bat
+app/
+
+# Keep only frontend/ backend/ README.md render.yaml run_studio.bat

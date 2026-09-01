@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartMelt Studio — Melt Optimisation</title>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+    </script>
+    <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+    <link rel="stylesheet" href="css/smartmelt.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-title">🔥 SmartMelt Studio</div>
+        <div class="header-meta" id="engine-version">engine v... · advisory-only</div>
+        <div class="header-meta" style="margin-left:auto;">Plant:</div>
+        <select id="plant-select"></select>
+        <div id="header-status">status</div>
+    </header>
+    
+    <nav id="tab-bar">
+        <button data-tab="operator" class="active">Operator Console</button>
+        <button data-tab="trajectory">Process Trajectory</button>
+        <button data-tab="physics">Physics & Energy</button>
+        <button data-tab="ekf">Virtual Sensor</button>
+        <button data-tab="ml">Machine Learning</button>
+        <button data-tab="drift">Drift Monitor</button>
+        <button data-tab="chargemix">Charge-Mix</button>
+        <button data-tab="economics">Economics</button>
+        <button data-tab="heatlog">Heat Log</button>
+        <button data-tab="settings">Settings</button>
+        <button data-tab="validation">Validation</button>
+        <button data-tab="about">About / Details</button>
+    </nav>
+    
+    <main id="tab-content">
+        <section data-tab="operator" id="tab-operator" class="tab-panel" style="display:block;">
+            <div class="two-col">
+                <div class="left-col">
+                    <div class="section-title-sm">Heat setup (applied at Start)</div>
+                    <div class="slider-row"><div class="slider-label">Charge (t)</div><input type="range" id="op-charge" min="4" max="14" step="0.1" value="12"><div class="slider-val" id="op-charge-val">12.0</div></div>
+                    <div class="slider-row"><div class="slider-label">Power (kW)</div><input type="range" id="op-power" min="1000" max="8000" step="100" value="5200"><div class="slider-val" id="op-power-val">5200</div></div>
+                    <div class="slider-row"><div class="slider-label">Charge C (%)</div><input type="range" id="op-c" min="0.05" max="1.5" step="0.01" value="0.30"><div class="slider-val" id="op-c-val">0.30</div></div>
+                    <div class="slider-row"><div class="slider-label">Charge Cu (%)</div><input type="range" id="op-cu" min="0.05" max="0.5" step="0.01" value="0.20"><div class="slider-val" id="op-cu-val">0.20</div></div>
+                    <div class="form-row" style="flex-direction:row; gap:8px;">
+                        <button class="btn btn-primary" id="btn-start" style="flex:1;">▶ START HEAT</button>
+                        <button class="btn" id="btn-tap" style="flex:1;" disabled>⏏ TAP HEAT</button>
+                    </div>
+                    <div class="speed-row">
+                        <span class="thin-note" style="margin-right:8px;">Speed:</span>
+                        <button class="btn speed-btn" data-speed="0">⏸</button>
+                        <button class="btn speed-btn" data-speed="1">1×</button>
+                        <button class="btn speed-btn active" data-speed="10">10×</button>
+                        <button class="btn speed-btn" data-speed="60">60×</button>
+                    </div>
+                    
+                    <div class="section-title-sm" style="margin-top:10px;">Add material NOW (during heat)</div>
+                    <div class="form-row" style="flex-direction:row; gap:8px; align-items:center;">
+                        <select id="op-material" style="flex:2.5;"></select>
+                        <input type="number" id="op-mass" style="flex:1;" min="0" step="1" value="48">
+                    </div>
+                    <button class="btn" id="btn-add" style="width:100%; margin-top:4px;" disabled>＋ Add to bath now</button>
+                    <div class="form-row" style="flex-direction:row; gap:4px; margin-top:4px;">
+                        <button class="btn quick-add" data-mat="Lime (92% CaO)" data-mass="48" style="flex:1; font-size:10px;">Lime</button>
+                        <button class="btn quick-add" data-mat="FeSi75" data-mass="15" style="flex:1; font-size:10px;">FeSi75</button>
+                        <button class="btn quick-add" data-mat="Carburiser" data-mass="12" style="flex:1; font-size:10px;">Carb</button>
+                        <button class="btn quick-add" data-mat="Mill scale (FeO)" data-mass="120" style="flex:1; font-size:10px;">M scale</button>
+                    </div>
+                    
+                    <div class="logbox" id="op-log" style="margin-top:8px;">&nbsp;</div>
+                    
+                    <div class="section-title-sm" style="margin-top:10px;">Furnace state</div>
+                    <div class="furnace-frame" style="position:relative;">
+                        <canvas id="furnace-canvas"></canvas>
+                        <!-- Overlay elements -->
+                        <div id="furnace-temp" style="position:absolute; top:25px; left:0; font-size:13px; font-weight:700; color:#ffd166;">1620 °C</div>
+                    </div>
+                </div>
+                <div class="right-col">
+                    <div style="display:flex; justify-content:space-between;">
+                        <div class="heat-clock" id="op-clock">00:00</div>
+                        <div id="op-status-pill"></div>
+                    </div>
+                    <div class="kpi-grid" id="op-kpi"></div>
+                    <div class="section-title-sm" style="margin-top:10px;">Advisory — live verdicts</div>
+                    <div class="adv-grid" id="op-adv"></div>
+                    <div class="live-trend" style="margin-top:8px;" id="op-trend"></div>
+                    <div class="thin-note" id="op-end-text" style="margin-top:8px; white-space:pre-wrap;"></div>
+                </div>
+            </div>
+        </section>
+        
+        <section data-tab="trajectory" id="tab-trajectory" class="tab-panel"></section>
+        <section data-tab="physics" id="tab-physics" class="tab-panel"></section>
+        <section data-tab="ekf" id="tab-ekf" class="tab-panel"></section>
+        <section data-tab="ml" id="tab-ml" class="tab-panel"></section>
+        <section data-tab="drift" id="tab-drift" class="tab-panel"></section>
+        <section data-tab="chargemix" id="tab-chargemix" class="tab-panel"></section>
+        <section data-tab="economics" id="tab-economics" class="tab-panel"></section>
+        <section data-tab="heatlog" id="tab-heatlog" class="tab-panel"></section>
+        <section data-tab="settings" id="tab-settings" class="tab-panel"></section>
+        <section data-tab="validation" id="tab-validation" class="tab-panel"></section>
+        <section data-tab="about" id="tab-about" class="tab-panel"></section>
+    </main>
+    
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+    
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
