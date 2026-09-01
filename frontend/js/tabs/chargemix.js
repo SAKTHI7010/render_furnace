@@ -25,7 +25,7 @@ export function activate() {
           <div class="slider-row"><div class="slider-label">Min C (%)</div><input type="range" id="mix-clo" min="0" max="0.5" step="0.01" value="0.10"><div class="slider-val" id="mix-clo-val">0.10</div></div>
           <div class="slider-row"><div class="slider-label">Max C (%)</div><input type="range" id="mix-chi" min="0.1" max="1.0" step="0.01" value="0.40"><div class="slider-val" id="mix-chi-val">0.40</div></div>
           <div class="slider-row"><div class="slider-label">Cu ceiling (%)</div><input type="range" id="mix-cu" min="0.08" max="0.5" step="0.01" value="0.20"><div class="slider-val" id="mix-cu-val">0.20</div></div>
-          <div class="slider-row"><div class="slider-label">Sn ceiling (%)</div><input type="range" id="mix-sn" min="0.01" max="0.10" step="0.001" value="0.03"><div class="slider-val" id="mix-sn-val">0.030</div></div>
+          <div class="slider-row"><div class="slider-label">Sn ceiling (%)</div><input type="range" id="mix-sn" min="0.01" max="0.50" step="0.001" value="0.03"><div class="slider-val" id="mix-sn-val">0.030</div></div>
         </div>
         <button class="btn btn-primary" id="btn-mix-solve">Solve</button>
       </div>
