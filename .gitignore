@@ -48,9 +48,10 @@ examples/
 *.joblib
 *.h5
 
-# Streamlit app files (not deployed via render_furnace)
+# Streamlit app files
 streamlit_app.py
 run_streamlit.bat
-app/
+app/exact_tabs.py
+app/exact_sidebar.py
 
-# Keep only frontend/ backend/ README.md render.yaml run_studio.bat
+# Keep only frontend/ backend/ app/ README.md render.yaml run_studio.bat
