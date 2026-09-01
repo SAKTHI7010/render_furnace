@@ -17,12 +17,17 @@ class MLGenRequest(BaseModel):
 @router.post("/train")
 def ml_train(req: MLTrainRequest):
     cfg = E.get_config(req.plant)
-    d = None
+    err_msg = "No cached dataset found"
     if req.use_cached:
-        try: d = E.load_cached_dataset()
-        except: pass
+        try:
+            d = E.load_cached_dataset()
+            if d is None:
+                err_msg = "load_cached_dataset returned None"
+        except Exception as e:
+            err_msg = f"Exception loading cache: {type(e).__name__}: {str(e)}"
+
     if d is None:
-        return {"error": "No cached dataset found"}
+        return {"error": err_msg}
     
     ml = E.train_hybrid(cfg, d, split_frac=req.split_frac)
     return json_safe({

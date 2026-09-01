@@ -42,6 +42,11 @@ async function runEkf(useCached) {
       n_dips: parseInt(document.getElementById('ekf-dips').value),
       use_cached: useCached,
     });
+    
+    if (res.error) {
+      throw new Error(res.error);
+    }
+    
     state.ekfResult = res;
     renderEkf(res);
   } catch (e) {

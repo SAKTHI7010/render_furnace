@@ -16,13 +16,18 @@ class EKFRequest(BaseModel):
 def run_ekf(req: EKFRequest):
     cfg = E.get_config(req.plant)
     ek = None
+    err_msg = "No cached EKF found"
     if req.use_cached:
         try:
             ek = E.load_default_ekf()
-        except:
-            pass
+            if ek is None:
+                err_msg = "load_default_ekf returned None"
+        except Exception as e:
+            err_msg = f"Exception loading EKF cache: {type(e).__name__}: {str(e)}"
             
     if not ek:
+        if req.use_cached:
+            return {"error": err_msg}
         dip_times_min = tuple(np.linspace(30, 78, req.n_dips))
         ek = E.run_ekf_demo(cfg, true_eta=req.true_eta, true_UA_scale=req.true_UA_scale, dip_times_min=dip_times_min, seed=1)
         

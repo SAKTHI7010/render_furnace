@@ -44,6 +44,11 @@ async function runMl(live) {
     const res = live
       ? await api.mlGenerate({plant: state.plant, split_frac: split, n_heats: n})
       : await api.mlTrain({plant: state.plant, split_frac: split, use_cached: true});
+    
+    if (res.error) {
+      throw new Error(res.error);
+    }
+    
     state.mlResult = res;
     renderMl(res);
   } catch (e) {
