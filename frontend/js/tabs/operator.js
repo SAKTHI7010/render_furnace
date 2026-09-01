@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { api } from '../api.js';
 import { state, currentSnap, setPlaySpeed, syncPlayback, operatorStatus, logHeat } from '../state.js';
 import { kpi, showLoading, pill, advCard } from '../main.js';
@@ -7,6 +8,7 @@ let furnace = null;
 let loopActive = false;
 let loopTimer = null;
 let uiTimer = null;
+let trendInitialized = false;
 
 export function activate() {
     if (!furnace) {
@@ -67,6 +69,25 @@ export function getHeatSpec() {
     };
 }
 
+function initTrend() {
+    const trendEl = document.getElementById('op-trend');
+    if (!trendEl) return;
+    
+    Plotly.newPlot('op-trend', [
+        { x: [], y: [], name: 'Bath °C', type: 'scatter', line: { color: '#ff6a34', width: 2 }, yaxis: 'y1' },
+        { x: [], y: [], name: '% C', type: 'scatter', line: { color: '#33d17a', width: 1.5 }, yaxis: 'y2' },
+    ], {
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#0f1418',
+        margin: { l: 48, r: 48, t: 6, b: 28 }, height: 170,
+        xaxis: { gridcolor: '#20262c', zeroline: false, color: '#9aa4af', title: { text: 'min', font: { size: 9 } } },
+        yaxis:  { gridcolor: '#20262c', zeroline: false, color: '#ff6a34', side: 'left',  title: { text: '°C', font: { size: 9 } } },
+        yaxis2: { gridcolor: '#20262c', zeroline: false, color: '#33d17a', side: 'right', title: { text: '% C', font: { size: 9 } }, overlaying: 'y', rangemode: 'tozero' },
+        showlegend: true,
+        legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 9 }, bgcolor: 'rgba(0,0,0,0)' },
+    }, { responsive: true, displayModeBar: false });
+    trendInitialized = true;
+}
+
 async function onStart() {
     try {
         showLoading(true);
@@ -82,6 +103,7 @@ async function onStart() {
         state.appliedAdds = [];
         state.addLog = [];
         state.heatLog = [];
+        trendInitialized = false;
         
         logHeat('Start heat', `${spec.charge_t} t, ${spec.power_kW} kW, C=${spec.carbon_pct}%, Cu=${spec.copper_pct}%`, 0);
         
@@ -97,13 +119,8 @@ async function onStart() {
         document.getElementById('op-end-text').textContent = '';
         document.getElementById('op-adv').innerHTML = '';
         
-        // Initialize an empty Plotly chart in op-trend
-        Plotly.newPlot('op-trend', [], {
-            paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'#0f1418',
-            margin:{l:30,r:30,t:10,b:20}, height:150,
-            xaxis:{gridcolor:'#20262c', zeroline:false},
-            yaxis:{gridcolor:'#20262c', zeroline:false},
-        }, {responsive:true, displayModeBar:false});
+        // Initialize fresh trend chart
+        initTrend();
         
     } catch (e) {
         alert(e.message);
@@ -159,8 +176,8 @@ async function onTap() {
         
         logHeat('Tap heat', `T=${res.T_bath_C.toFixed(0)}°C, C=${res.pct_C.toFixed(3)}%, SEC=${res.SEC_kWh_t.toFixed(0)} kWh/t`, res.tap_time_min);
         
-        document.getElementById('op-end-text').textContent = `TAPPED at ${res.tap_time_min.toFixed(1)} min.\nT_bath = ${res.T_bath_C.toFixed(0)} °C\nC = ${res.pct_C.toFixed(3)} %\nSEC = ${res.SEC_kWh_t.toFixed(0)} kWh/t\nSlag FeO = ${res.slag_FeO_pct.toFixed(1)} %\nBasicity (B2) = ${res.B2.toFixed(2)}`;
-
+        document.getElementById('op-end-text').textContent =
+            `TAPPED at ${res.tap_time_min.toFixed(1)} min.\nT_bath = ${res.T_bath_C.toFixed(0)} °C\nC = ${res.pct_C.toFixed(3)} %\nSEC = ${res.SEC_kWh_t.toFixed(0)} kWh/t\nSlag FeO = ${res.slag_FeO_pct.toFixed(1)} %\nBasicity (B2) = ${res.B2.toFixed(2)}`;
 
         const log = document.getElementById('op-log');
         log.innerHTML += `Heat tapped.\n`;
@@ -179,52 +196,58 @@ function loop() {
     const snap = currentSnap();
     if (!snap) return;
     
-    const aim = state.configs[state.plant] ? state.configs[state.plant]["Tap aim (°C)"] : 1620;
-    const sz = state.configs[state.plant] ? state.configs[state.plant]["Heat size (t)"] : 12;
+    const aim = state.configs[state.plant] ? state.configs[state.plant]['Tap aim (°C)'] : 1620;
+    const sz  = state.configs[state.plant] ? state.configs[state.plant]['Heat size (t)'] : 12;
     
     // Update Furnace
     if (furnace) {
-        furnace.update(
-            snap.melted_pct, snap.T_bath_C, snap.slag_total_kg, 
-            snap.undissolved_kg, sz, aim
-        );
+        furnace.update(snap.melted_pct, snap.T_bath_C, snap.slag_total_kg, snap.undissolved_kg, sz, aim);
         document.getElementById('furnace-temp').textContent = `${snap.T_bath_C.toFixed(0)} °C`;
     }
     
-    // Update Live Plotly Trend
+    // Update Live Plotly Trend — only update data, don't re-create layout
     const past = state.frames.slice(0, state.frameIdx + 1);
-    if (past.length > 0 && document.getElementById('op-trend').querySelector('.js-plotly-plot')) {
-        const t = past.map(f => f.t_min);
-        const traces = [
-            {x: t, y: past.map(f => f.T_bath_C), name: '°C', type: 'scatter', line: {color: '#ff6a34', width: 2}, yaxis: 'y1'},
-            {x: t, y: past.map(f => f.pct_C), name: '% C', type: 'scatter', line: {color: '#33d17a', width: 2}, yaxis: 'y2'}
-        ];
-        Plotly.react('op-trend', traces, {
-            paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'#0f1418',
-            margin:{l:40,r:40,t:10,b:20}, height:150,
-            xaxis:{gridcolor:'#20262c', zeroline:false},
-            yaxis:{gridcolor:'#20262c', zeroline:false, side:'left'},
-            yaxis2:{gridcolor:'#20262c', zeroline:false, side:'right', overlaying:'y', range:[0, Math.max(...past.map(f => f.pct_C)) * 1.5]},
-            showlegend: false
-        }, {responsive:true, displayModeBar:false});
+    if (past.length > 1) {
+        if (!trendInitialized) initTrend();
+        
+        const t     = past.map(f => f.t_min);
+        const temps = past.map(f => f.T_bath_C);
+        const carbs = past.map(f => f.pct_C);
+        
+        // Use Plotly.react for efficient update (only changes data, not layout)
+        Plotly.react('op-trend', [
+            { x: t, y: temps, name: 'Bath °C', type: 'scatter', line: { color: '#ff6a34', width: 2 }, yaxis: 'y1' },
+            { x: t, y: carbs, name: '% C',     type: 'scatter', line: { color: '#33d17a', width: 1.5 }, yaxis: 'y2' },
+        ], {
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: '#0f1418',
+            margin: { l: 48, r: 48, t: 6, b: 28 }, height: 170,
+            xaxis: { gridcolor: '#20262c', zeroline: false, color: '#9aa4af', title: { text: 'min', font: { size: 9 } } },
+            yaxis:  { gridcolor: '#20262c', zeroline: false, color: '#ff6a34', side: 'left',
+                      title: { text: '°C', font: { size: 9 } },
+                      range: [0, Math.max(aim + 100, ...temps)] },
+            yaxis2: { gridcolor: '#20262c', zeroline: false, color: '#33d17a', side: 'right',
+                      title: { text: '% C', font: { size: 9 } },
+                      overlaying: 'y',
+                      range: [0, Math.max(1.5, ...carbs) * 1.4] },
+            showlegend: true,
+            legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 9 }, bgcolor: 'rgba(0,0,0,0)' },
+        }, { responsive: true, displayModeBar: false });
     }
     
     // Update KPIs
     const kpiHtml = [
-        kpi('BATH °C', snap.T_bath_C.toFixed(0)),
-        kpi('CARBON %', snap.pct_C.toFixed(3)),
-        kpi('MELTED %', snap.melted_pct.toFixed(1)),
-        kpi('SEC KWH/T', snap.SEC_kWh_t.toFixed(0)),
-        
+        kpi('BATH °C',    snap.T_bath_C.toFixed(0)),
+        kpi('CARBON %',   snap.pct_C.toFixed(3)),
+        kpi('MELTED %',   snap.melted_pct.toFixed(1)),
+        kpi('SEC KWH/T',  snap.SEC_kWh_t.toFixed(0)),
         kpi('SLAG FEO %', snap.slag_FeO_pct.toFixed(1)),
-        kpi('BASICITY B2', snap.B2.toFixed(2)),
-        kpi('SILICON %', snap.pct_Si.toFixed(3)),
-        kpi('MANGANESE %', snap.pct_Mn.toFixed(3)),
-        
-        kpi('POWER KW', snap.Q_useful_kW ? snap.Q_useful_kW.toFixed(0) : '—'),
-        kpi('TOTAL KWH', snap.E_kWh.toFixed(0)),
-        kpi('EXPECTED TAP °C', aim),
-        kpi('ACTUAL TAP °C', state.tapped ? snap.T_bath_C.toFixed(0) : '—')
+        kpi('BASICITY B2',snap.B2.toFixed(2)),
+        kpi('SILICON %',  snap.pct_Si.toFixed(3)),
+        kpi('MANGANESE %',snap.pct_Mn.toFixed(3)),
+        kpi('POWER KW',   snap.Q_useful_kW ? snap.Q_useful_kW.toFixed(0) : '—'),
+        kpi('TOTAL KWH',  snap.E_kWh.toFixed(0)),
+        kpi('AIM TAP °C', aim),
+        kpi('TAP °C',     state.tapped ? snap.T_bath_C.toFixed(0) : '—')
     ].join('');
     document.getElementById('op-kpi').innerHTML = kpiHtml;
     
@@ -234,7 +257,7 @@ function loop() {
     const s = Math.floor(totalS % 60).toString().padStart(2, '0');
     document.getElementById('op-clock').textContent = `${m}:${s}`;
     
-    // Pills
+    // Status pill
     const st = operatorStatus(snap, aim);
     document.getElementById('op-status-pill').innerHTML = pill(st.text, st.kind);
 }
@@ -244,7 +267,6 @@ let lastAdvisories = [];
 async function updateUI() {
     if (!state.running || state.tapped) return;
     
-    // Refresh advisories every ~2 seconds
     if (Math.random() < 0.4) {
         try {
             const res = await api.operatorAdvisories({
@@ -254,7 +276,6 @@ async function updateUI() {
             const html = res.advisories.map(a => advCard(a[0], a[1], a[2])).join('');
             document.getElementById('op-adv').innerHTML = html;
             
-            // Log new advisories
             res.advisories.forEach(a => {
                 const key = a[1] + a[2];
                 if (!lastAdvisories.includes(key) && a[0] !== 'ok') {

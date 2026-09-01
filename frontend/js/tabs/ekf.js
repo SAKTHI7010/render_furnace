@@ -25,7 +25,15 @@ export function activate() {
       const el = document.getElementById(id);
       el.addEventListener('input', () => document.getElementById(id+'-val').textContent = parseFloat(el.value).toFixed(id==='ekf-dips'?0:2));
     });
-    document.getElementById('btn-ekf-run').addEventListener('click', () => runEkf(false));
+    document.getElementById('btn-ekf-run').addEventListener('click', () => {
+      const confirmed = confirm(
+        '⚠️  Live EKF runs finite-difference Jacobians over 34 states.\n\n' +
+        '• Locally: ~10–30 seconds\n' +
+        '• On Render free tier: may take 2–5 minutes (free server is slow)\n\n' +
+        'The page will show a spinner while it runs. Continue?'
+      );
+      if (confirmed) runEkf(false);
+    });
     initialized = true;
   }
   if (!state.ekfResult) runEkf(true);
@@ -33,7 +41,13 @@ export function activate() {
 }
 
 async function runEkf(useCached) {
+  const kpisEl = document.getElementById('ekf-kpis');
   showLoading(true);
+  if (!useCached) {
+    kpisEl.innerHTML = `<div style="grid-column:1/-1;color:#f0a83c;padding:8px;">
+      ⏳ Running live EKF… this may take 2–5 minutes on Render. Please wait.
+    </div>`;
+  }
   try {
     const res = await api.ekf({
       plant: state.plant,
@@ -44,13 +58,21 @@ async function runEkf(useCached) {
     });
     
     if (res.error) {
+      // Cache missing — run live silently
+      if (useCached) {
+        kpisEl.innerHTML = `<div style="grid-column:1/-1;color:#f0a83c;padding:8px;">
+          Cache unavailable — run "<strong>Run live</strong>" to compute the EKF now.
+        </div>`;
+        showLoading(false);
+        return;
+      }
       throw new Error(res.error);
     }
     
     state.ekfResult = res;
     renderEkf(res);
   } catch (e) {
-    document.getElementById('ekf-kpis').innerHTML = `<div style="color:#e5484d;grid-column:1/-1;">Error: ${e.message}</div>`;
+    kpisEl.innerHTML = `<div style="color:#e5484d;grid-column:1/-1;">Error: ${e.message}</div>`;
   } finally {
     showLoading(false);
   }
