@@ -9,14 +9,14 @@ export function activate() {
   if (!initialized) {
     panel.innerHTML = `
       <div class="section-title">Virtual Sensor — Extended Kalman Filter temperature estimator</div>
-      <div class="thin-note" style="margin-bottom:8px;">Default result is pre-computed and loads instantly. A live run recomputes the Kalman filter (finite-difference Jacobians over 34 states ≈ 1 min).</div>
+      <div class="thin-note" style="margin-bottom:8px;">Default result is pre-computed and loads instantly. A live run recomputes the Kalman filter (~30 s locally, ~2–3 min on Render free tier).</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
         <div>
           <div class="slider-row"><div class="slider-label">True η electrical</div><input type="range" id="ekf-eta" min="0.8" max="1.0" step="0.01" value="0.90"><div class="slider-val" id="ekf-eta-val">0.90</div></div>
           <div class="slider-row"><div class="slider-label">True wall-loss scale</div><input type="range" id="ekf-ua" min="0.8" max="1.8" step="0.05" value="1.35"><div class="slider-val" id="ekf-ua-val">1.35</div></div>
           <div class="slider-row"><div class="slider-label">Immersion dips</div><input type="range" id="ekf-dips" min="1" max="6" step="1" value="3"><div class="slider-val" id="ekf-dips-val">3</div></div>
         </div>
-        <button class="btn" id="btn-ekf-run">Run live (~1 min)</button>
+        <button class="btn" id="btn-ekf-run">🔁 Run live</button>
       </div>
       <div class="kpi-grid" id="ekf-kpis"></div>
       <div id="ekf-chart" style="margin-top:8px; background:#0f1418; border:1px solid #232c33; min-height:380px;"></div>`;

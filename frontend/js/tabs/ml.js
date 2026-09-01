@@ -13,11 +13,14 @@ export function activate() {
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
         <div>
           <div class="slider-row"><div class="slider-label">Train fraction</div><input type="range" id="ml-split" min="0.5" max="0.85" step="0.01" value="0.70"><div class="slider-val" id="ml-split-val">0.70</div></div>
-          <div class="slider-row"><div class="slider-label">Live heats</div><input type="range" id="ml-n" min="20" max="80" step="1" value="40"><div class="slider-val" id="ml-n-val">40</div></div>
+          <div class="slider-row"><div class="slider-label">Live heats</div><input type="range" id="ml-n" min="5" max="20" step="1" value="10"><div class="slider-val" id="ml-n-val">10</div></div>
         </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn" id="btn-ml-cached">Train on cached data</button>
-          <button class="btn" id="btn-ml-live">Generate live (slow)</button>
+        <div style="display:flex;gap:8px;flex-direction:column;">
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-primary" id="btn-ml-cached">⚡ Train on cached data (fast)</button>
+            <button class="btn" id="btn-ml-live">🔁 Generate live</button>
+          </div>
+          <div class="thin-note" style="margin:0;">Cached data trains in &lt;1 s. Live generates N heats (~8 s/heat on Render, max 20).</div>
         </div>
       </div>
       <div id="ml-pill" style="margin-bottom:8px;"></div>
@@ -38,9 +41,18 @@ export function activate() {
 
 async function runMl(live) {
   showLoading(true);
+  const n = parseInt(document.getElementById('ml-n').value);
+  const pillEl = document.getElementById('ml-pill');
+  if (live) {
+    const estSecs = n * 8;
+    const estMin = Math.ceil(estSecs / 60);
+    pillEl.innerHTML = `<div style="color:#f0a83c;padding:8px;background:#1c1408;border:1px solid #4a3000;border-radius:4px;">
+      ⏳ Simulating ${n} heats live… estimated <strong>${estSecs < 60 ? estSecs + ' s' : '~' + estMin + ' min'}</strong> on Render.
+      Other pages remain responsive. Please wait.
+    </div>`;
+  }
   try {
     const split = parseFloat(document.getElementById('ml-split').value);
-    const n = parseInt(document.getElementById('ml-n').value);
     const res = live
       ? await api.mlGenerate({plant: state.plant, split_frac: split, n_heats: n})
       : await api.mlTrain({plant: state.plant, split_frac: split, use_cached: true});
