@@ -1,1 +1,0 @@
-"""SmartMelt desktop GUI package."""
